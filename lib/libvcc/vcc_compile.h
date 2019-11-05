@@ -234,6 +234,7 @@ struct vcc {
 	unsigned		nsources;
 	struct source		*src;
 	struct token		*t;
+	struct token		*snap;
 	int			indent;
 	int			hindent;
 	unsigned		cnt;
@@ -314,6 +315,7 @@ char *TlDup(struct vcc *tl, const char *s);
 
 /* vcc_expr.c */
 void vcc_Expr(struct vcc *tl, vcc_type_t typ);
+int vcc_PeekExpr(struct vcc *tl, vcc_type_t typ);
 sym_act_f vcc_Act_Call;
 void vcc_Expr_Init(struct vcc *tl);
 sym_expr_t vcc_Eval_Var;

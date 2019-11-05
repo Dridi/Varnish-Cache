@@ -376,6 +376,8 @@ vcc_MarkPriv(struct vcc *tl, struct procprivhead *head,
 	struct procpriv *pp;
 
 	AN(vmod);
+	if (tl->snap != NULL)
+		return (NULL);
 
 	VTAILQ_FOREACH(pp, head, list) {
 		if (pp->vmod == vmod)

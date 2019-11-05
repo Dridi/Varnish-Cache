@@ -116,6 +116,8 @@ static void
 vcc_icoord(const struct vcc *tl, const struct token *t, int tail)
 {
 
+	if (tl->snap != NULL)
+		return;
 	vcc_coord(tl->err_sb, t, tail);
 }
 
@@ -125,6 +127,8 @@ void
 vcc_Coord(const struct vcc *tl, struct vsb *vsb)
 {
 
+	if (tl->snap != NULL)
+		return;
 	vcc_coord(vsb, tl->t, 0);
 }
 
@@ -199,6 +203,8 @@ vcc_Complain(const struct vcc *tl, const char *s)
 	AN(tl);
 	AN(s);
 
+	if (tl->snap != NULL)
+		return;
 	(void)VSB_cat(tl->err_sb, s);
 }
 
@@ -210,6 +216,8 @@ vcc_Complainf(const struct vcc *tl, const char *fmt, ...)
 	AN(tl);
 	AN(fmt);
 
+	if (tl->snap != NULL)
+		return;
 	va_start(ap, fmt);
 	(void)VSB_vprintf(tl->err_sb, fmt, ap);
 	va_end(ap);

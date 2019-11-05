@@ -110,6 +110,8 @@ vcc_suckaddr(struct vcc *tl, const char *host, const struct suckaddr *vsa,
 	unsigned len;
 	char *q;
 
+	if (tl->snap != NULL)
+		return;
 	VTCP_name(vsa, a, sizeof a, p, sizeof p);
 	Fh(tl, 0, "\n/* \"%s\" -> %s */\n", host, a);
 	if (ip_ascii != NULL)

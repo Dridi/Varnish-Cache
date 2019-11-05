@@ -120,6 +120,21 @@ vcc_delete_expr(struct expr *e)
 	FREE_OBJ(e);
 }
 
+/*--------------------------------------------------------------------*/
+
+static void v_printflike_(2, 3)
+vcc_prologue(struct vcc *tl, const char *fmt, ...)
+{
+	va_list ap;
+
+	if (tl->snap != NULL)
+		return;
+
+	va_start(ap, fmt);
+	VSB_vprintf(tl->curproc->prologue, fmt, ap);
+	va_end(ap);
+}
+
 /*--------------------------------------------------------------------
  * We want to get the indentation right in the emitted C code so we have
  * to represent it symbolically until we are ready to render.
@@ -183,7 +198,7 @@ vcc_expr_edit(struct vcc *tl, vcc_type_t fmt, const char *p, struct expr *e1,
 		case 't':
 			e3 = (*p == 'T' ? e1 : e2);
 			AN(e3);
-			VSB_printf(tl->curproc->prologue,
+			vcc_prologue(tl,
 			    "  struct strands strs_%u_a;\n"
 			    "  const char * strs_%u_s[%d];\n",
 			    tl->unique, tl->unique, e3->nstr);
@@ -382,15 +397,13 @@ vcc_priv_arg(struct vcc *tl, const char *p, const struct symbol *sym)
 	bprintf(buf, "ARG_priv_%s_%s", f, sym->vmod_name);
 
 	if (vcc_MarkPriv(tl, marklist, sym->vmod_name) == NULL)
-		VSB_printf(tl->curproc->prologue,
-			   "  struct vmod_priv *%s = "
-			   "VRT_priv_%s(ctx, &VGC_vmod_%s);\n"
-			   "  if (%s == NULL) {\n"
-			   "    VRT_fail(ctx, \"failed to get %s priv "
-			   "for vmod %s\");\n"
-			   "    return;\n"
-			   "  }\n",
-			   buf, f, sym->vmod_name, buf, f, sym->vmod_name);
+		vcc_prologue(tl,
+		    "  struct vmod_priv *%s = VRT_priv_%s(ctx, &VGC_vmod_%s);\n"
+		    "  if (%s == NULL) {\n"
+		    "    VRT_fail(ctx, \"failed to get %s priv for vmod %s\");\n"
+		    "    return;\n"
+		    "  }\n",
+		    buf, f, sym->vmod_name, buf, f, sym->vmod_name);
 	return (vcc_mk_expr(VOID, "%s", buf));
 }
 
@@ -1395,9 +1408,34 @@ vcc_Expr(struct vcc *tl, vcc_type_t fmt)
 	ERRCHK(tl);
 	assert(e->fmt == fmt);
 
-	vcc_expr_fmt(tl->fb, tl->indent, e);
-	VSB_cat(tl->fb, "\n");
+	if (tl->snap == NULL) {
+		vcc_expr_fmt(tl->fb, tl->indent, e);
+		VSB_cat(tl->fb, "\n");
+	}
 	vcc_delete_expr(e);
+}
+
+int
+vcc_PeekExpr(struct vcc *tl, vcc_type_t fmt)
+{
+	int err;
+
+	/* snapshot */
+	AZ(tl->snap);
+	AZ(tl->err);
+	tl->snap = tl->t;
+
+	/* evaluate */
+	vcc_Expr(tl, fmt);
+	err = tl->err;
+
+	/* restore */
+	AN(tl->snap);
+	tl->t = tl->snap;
+	tl->snap = NULL;
+	tl->err = 0;
+
+	return (err);
 }
 
 /*--------------------------------------------------------------------
