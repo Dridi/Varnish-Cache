@@ -130,9 +130,9 @@ vcc_act_set(struct vcc *tl, struct token *t, struct symbol *sym)
 	if (sym->w_methods == 0) {
 		vcc_ErrWhere2(tl, t, tl->t);
 		if (sym->r_methods != 0)
-			VSB_printf(tl->sb, "Variable is read only.\n");
+			vcc_Complain(tl, "Variable is read only.\n");
 		else
-			VSB_printf(tl->sb, "Variable cannot be set.\n");
+			vcc_Complain(tl, "Variable cannot be set.\n");
 		return;
 	}
 	vcc_AddUses(tl, t, tl->t, sym->w_methods, "Cannot be set");
@@ -174,7 +174,7 @@ vcc_act_unset(struct vcc *tl, struct token *t, struct symbol *sym)
 	AN(sym);
 	if (sym->u_methods == 0) {
 		vcc_ErrWhere2(tl, t, tl->t);
-		VSB_printf(tl->sb, "Variable cannot be unset.\n");
+		vcc_Complain(tl, "Variable cannot be unset.\n");
 		return;
 	}
 	vcc_AddUses(tl, t, tl->t, sym->u_methods, "Cannot be unset");
@@ -345,7 +345,7 @@ vcc_act_return(struct vcc *tl, struct token *t, struct symbol *sym)
 		}
 #include "tbl/vcl_returns.h"
 	if (h == NULL) {
-		VSB_printf(tl->sb, "Expected return action name.\n");
+		vcc_Complain(tl, "Expected return action name.\n");
 		vcc_ErrWhere(tl, tl->t);
 		ERRCHK(tl);
 	}
@@ -363,12 +363,12 @@ vcc_act_return(struct vcc *tl, struct token *t, struct symbol *sym)
 		else if (hand == VCL_RET_FAIL)
 			vcc_act_return_fail(tl);
 		else {
-			VSB_printf(tl->sb, "Arguments not allowed.\n");
+			vcc_Complain(tl, "Arguments not allowed.\n");
 			vcc_ErrWhere(tl, tl->t);
 		}
 	} else {
 		if (hand == VCL_RET_SYNTH || hand == VCL_RET_VCL) {
-			VSB_printf(tl->sb, "Missing argument.\n");
+			vcc_Complain(tl, "Missing argument.\n");
 			vcc_ErrWhere(tl, tl->t);
 		}
 	}

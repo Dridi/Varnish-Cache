@@ -244,7 +244,7 @@ struct vcc {
 	struct vsb		*fb;		/* Body of current sub
 						 * NULL otherwise
 						 */
-	struct vsb		*sb;
+	struct vsb		*err_sb;
 	int			err;
 	struct proc		*curproc;
 	VTAILQ_HEAD(, proc)	procs;
@@ -377,6 +377,8 @@ void vcc_ErrToken(const struct vcc *tl, const struct token *t);
 void vcc_ErrWhere(struct vcc *, const struct token *);
 void vcc_ErrWhere2(struct vcc *, const struct token *, const struct token *);
 void vcc_Warn(struct vcc *);
+void vcc_Complain(const struct vcc *, const char *);
+void vcc_Complainf(const struct vcc *, const char *, ...);
 
 void vcc__Expect(struct vcc *tl, unsigned tok, unsigned line);
 int vcc_IdIs(const struct token *t, const char *p);
