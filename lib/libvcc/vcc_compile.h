@@ -371,8 +371,7 @@ typedef void symwalk_f(struct vcc *tl, const struct symbol *s);
 void VCC_WalkSymbols(struct vcc *tl, symwalk_f *func, vcc_kind_t);
 
 /* vcc_token.c */
-void vcc_Coord(const struct vcc *tl, struct vsb *vsb,
-    const struct token *t);
+void vcc_Coord(const struct vcc *tl, struct vsb *vsb);
 void vcc_ErrToken(const struct vcc *tl, const struct token *t);
 void vcc_ErrWhere(struct vcc *, const struct token *);
 void vcc_ErrWhere2(struct vcc *, const struct token *, const struct token *);

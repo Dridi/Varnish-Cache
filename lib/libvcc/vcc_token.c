@@ -122,12 +122,10 @@ vcc_icoord(const struct vcc *tl, const struct token *t, int tail)
 /*--------------------------------------------------------------------*/
 
 void
-vcc_Coord(const struct vcc *tl, struct vsb *vsb, const struct token *t)
+vcc_Coord(const struct vcc *tl, struct vsb *vsb)
 {
 
-	if (t == NULL)
-		t = tl->t;
-	vcc_coord(vsb, t, 0);
+	vcc_coord(vsb, tl->t, 0);
 }
 
 /*--------------------------------------------------------------------

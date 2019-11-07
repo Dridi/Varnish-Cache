@@ -269,7 +269,7 @@ vcc_ParseFunction(struct vcc *tl)
 	CHECK_OBJ_NOTNULL(p, PROC_MAGIC);
 	tl->fb = p->body;
 	Fb(tl, 1, "  /* ... from ");
-	vcc_Coord(tl, p->body, NULL);
+	vcc_Coord(tl, p->body);
 	Fb(tl, 0, " */\n");
 	tl->curproc = p;
 	tl->indent += INDENT;
