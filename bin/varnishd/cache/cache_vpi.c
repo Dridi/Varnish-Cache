@@ -142,7 +142,7 @@ vpi_vfc_priv_free(void *ptr)
 	VFC_destroy(&vfc);
 }
 
-void *
+VCL_BLOB
 VPI_VFC_find(struct vmod_priv *priv, const char *file_name)
 {
 	struct vfc *vfc;

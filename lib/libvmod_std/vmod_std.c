@@ -285,8 +285,10 @@ vmod_fnmatch(VRT_CTX, VCL_STRING pattern, VCL_STRING subject,
 VCL_STRING v_matchproto_(td_std_fileread)
 vmod_fileread(VRT_CTX, struct vmod_priv *priv, VCL_STRING file_name)
 {
+	VCL_BLOB b;
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	AN(priv);
-	return (VPI_VFC_find(priv, file_name));
+	b = VPI_VFC_find(priv, file_name);
+	return (b != NULL ? b->blob : NULL);
 }

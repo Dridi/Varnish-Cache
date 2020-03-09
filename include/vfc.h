@@ -32,8 +32,7 @@ struct vfc {
 	unsigned		magic;
 #define CACHED_FILE_MAGIC	0xa8e9d87a
 	char			*file_name;
-	char			*contents;
-	size_t			size;
+	struct vrt_blob		contents[1];
 	int			refcount;
 	VTAILQ_ENTRY(vfc)	list;
 };

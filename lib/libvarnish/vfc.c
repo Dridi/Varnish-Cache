@@ -53,6 +53,7 @@
 #include "vqueue.h"
 #include "miniobj.h"
 
+#include "vrt.h" /* XXX: maybe VFC belongs in cache_varnishd.h */
 #include "vfc.h"
 
 static VTAILQ_HEAD(, vfc)	vfc_head = VTAILQ_HEAD_INITIALIZER(vfc_head);
@@ -81,7 +82,7 @@ vfc_destroy(struct vfc **vfcp)
 	struct vfc *vfc;
 
 	TAKE_OBJ_NOTNULL(vfc, vfcp, CACHED_FILE_MAGIC);
-	free(vfc->contents);
+	free(TRUST_ME(vfc->contents->blob));
 	free(vfc->file_name);
 	FREE_OBJ(vfc);
 }
@@ -135,8 +136,8 @@ VFC_find(struct vfc *old, const char *file_name)
 		AN(vfc);
 		REPLACE(vfc->file_name, file_name);
 		vfc->refcount = 1;
-		vfc->contents = s;
-		vfc->size = (size_t)sz;
+		vfc->contents->blob = s;
+		vfc->contents->len = (size_t)sz;
 		AZ(pthread_mutex_lock(&vfc_mtx));
 		VTAILQ_INSERT_HEAD(&vfc_head, vfc, list);
 		AZ(pthread_mutex_unlock(&vfc_mtx));

@@ -79,4 +79,4 @@ struct vrt_blob;
 VCL_BLOB VPI_blob(VRT_CTX, VCL_STRING);
 
 /* Thin VFC wrapper for vmod_std and vmod_blob */
-void * VPI_VFC_find(struct vmod_priv *priv, const char *file_name);
+VCL_BLOB VPI_VFC_find(struct vmod_priv *priv, const char *file_name);
