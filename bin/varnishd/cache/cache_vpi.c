@@ -113,3 +113,19 @@ VPI_vcl_select(VRT_CTX, VCL_VCL vcl)
 	VSLb(ctx->req->vsl, SLT_VCL_use, "%s via %s",
 	    req->vcl->loaded_name, vcl->loaded_name);
 }
+
+static const struct vrt_blob null_string_blob = {
+	.blob = "(null)",
+	.len = sizeof "(null)" - 1,
+};
+
+VCL_BLOB
+VPI_blob(VRT_CTX, VCL_STRING s)
+{
+
+	if (s == NULL)
+		return (&null_string_blob);
+
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	return (VRT_blob(ctx, "STRING", s, strlen(s), 0));
+}
