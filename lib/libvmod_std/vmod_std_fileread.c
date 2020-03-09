@@ -64,6 +64,34 @@ static VTAILQ_HEAD(, frfile)	frlist = VTAILQ_HEAD_INITIALIZER(frlist);
 static pthread_mutex_t		frmtx = PTHREAD_MUTEX_INITIALIZER;
 
 static void
+unref_frfile(struct frfile **frfp)
+{
+	struct frfile *frf;
+
+	AN(frfp);
+	frf = *frfp;
+	if (frf == NULL)
+		return;
+	CHECK_OBJ(frf, CACHED_FILE_MAGIC);
+	assert(frf->refcount > 0);
+	if (--frf->refcount > 0)
+		*frfp = NULL;
+	else
+		VTAILQ_REMOVE(&frlist, frf, list);
+}
+
+static void
+destroy_frfile(struct frfile **frfp)
+{
+	struct frfile *frf;
+
+	TAKE_OBJ_NOTNULL(frf, frfp, CACHED_FILE_MAGIC);
+	free(frf->contents);
+	free(frf->file_name);
+	FREE_OBJ(frf);
+}
+
+static void
 free_frfile(void *ptr)
 {
 	struct frfile *frf;
@@ -71,41 +99,29 @@ free_frfile(void *ptr)
 	CAST_OBJ_NOTNULL(frf, ptr, CACHED_FILE_MAGIC);
 
 	AZ(pthread_mutex_lock(&frmtx));
-	if (--frf->refcount > 0)
-		frf = NULL;
-	else
-		VTAILQ_REMOVE(&frlist, frf, list);
+	unref_frfile(&frf);
 	AZ(pthread_mutex_unlock(&frmtx));
-	if (frf != NULL) {
-		free(frf->contents);
-		free(frf->file_name);
-		FREE_OBJ(frf);
-	}
+	if (frf != NULL)
+		destroy_frfile(&frf);
 }
 
-VCL_STRING v_matchproto_(td_std_fileread)
-vmod_fileread(VRT_CTX, struct vmod_priv *priv,
-    VCL_STRING file_name)
+static struct frfile *
+find_frfile(struct frfile *old, VCL_STRING file_name)
 {
-	struct frfile *frf = NULL;
+	struct frfile *frf;
 	char *s;
 	ssize_t sz;
 
-	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
-	AN(priv);
+	CHECK_OBJ_ORNULL(old, CACHED_FILE_MAGIC);
 
 	if (file_name == NULL)
 		return (NULL);
 
-	if (priv->priv != NULL) {
-		CAST_OBJ_NOTNULL(frf, priv->priv, CACHED_FILE_MAGIC);
-		if (!strcmp(file_name, frf->file_name))
-			return (frf->contents);
-	}
+	if (old != NULL && !strcmp(file_name, old->file_name))
+		return (old);
 
 	AZ(pthread_mutex_lock(&frmtx));
-	if (frf != NULL)
-		frf->refcount--;
+	unref_frfile(&old);
 	VTAILQ_FOREACH(frf, &frlist, list) {
 		if (!strcmp(file_name, frf->file_name)) {
 			frf->refcount++;
@@ -113,11 +129,10 @@ vmod_fileread(VRT_CTX, struct vmod_priv *priv,
 		}
 	}
 	AZ(pthread_mutex_unlock(&frmtx));
-	if (frf != NULL) {
-		priv->free = free_frfile;
-		priv->priv = frf;
-		return (frf->contents);
-	}
+	if (old != NULL)
+		destroy_frfile(&old);
+	if (frf != NULL)
+		return (frf);
 
 	s = VFIL_readfile(NULL, file_name, &sz);
 	if (s != NULL) {
@@ -128,11 +143,26 @@ vmod_fileread(VRT_CTX, struct vmod_priv *priv,
 		frf->refcount = 1;
 		frf->contents = s;
 		frf->size = (size_t)sz;
-		priv->free = free_frfile;
-		priv->priv = frf;
 		AZ(pthread_mutex_lock(&frmtx));
 		VTAILQ_INSERT_HEAD(&frlist, frf, list);
 		AZ(pthread_mutex_unlock(&frmtx));
 	}
-	return (s);
+	return (frf);
+}
+
+VCL_STRING v_matchproto_(td_std_fileread)
+vmod_fileread(VRT_CTX, struct vmod_priv *priv,
+    VCL_STRING file_name)
+{
+	struct frfile *frf;
+
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	AN(priv);
+
+	frf = find_frfile(priv->priv, file_name);
+	priv->priv = frf;
+	priv->free = free_frfile;
+	if (frf == NULL)
+		return (NULL);
+	return (frf->contents);
 }
