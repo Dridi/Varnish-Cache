@@ -35,6 +35,7 @@
 #include "cache_varnishd.h"
 
 #include "vcl.h"
+#include "vfc.h"
 
 #include "vcc_interface.h"
 
@@ -128,4 +129,30 @@ VPI_blob(VRT_CTX, VCL_STRING s)
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	return (VRT_blob(ctx, "STRING", s, strlen(s), 0));
+}
+
+/* Thin VFC wrapper for vmod_std and vmod_blob */
+
+static void
+vpi_vfc_priv_free(void *ptr)
+{
+	struct vfc *vfc;
+
+	CAST_OBJ_NOTNULL(vfc, ptr, CACHED_FILE_MAGIC);
+	VFC_destroy(&vfc);
+}
+
+void *
+VPI_VFC_find(struct vmod_priv *priv, const char *file_name)
+{
+	struct vfc *vfc;
+
+	AN(priv);
+
+	vfc = VFC_find(priv->priv, file_name);
+	priv->priv = vfc;
+	priv->free = vpi_vfc_priv_free;
+	if (vfc == NULL)
+		return (NULL);
+	return (vfc->contents);
 }

@@ -1,8 +1,9 @@
 /*-
- * Copyright (c) 2010-2011 Varnish Software AS
+ * Copyright (c) 2010-2020 Varnish Software AS
  * All rights reserved.
  *
  * Author: Sanjoy Das <sanjoy@playingwithpointers.com>
+ * Author: Dridi Boukelmoune <dridi.boukelmoune@gmail.com>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  *
@@ -41,74 +42,67 @@
 
 #include "config.h"
 
+#include <pthread.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "cache/cache.h"
-
+#include "vdef.h"
+#include "vas.h"
 #include "vfil.h"
+#include "vqueue.h"
+#include "miniobj.h"
 
-#include "vcc_if.h"
+#include "vfc.h"
 
-struct frfile {
-	unsigned			magic;
-#define CACHED_FILE_MAGIC 0xa8e9d87a
-	char				*file_name;
-	char				*contents;
-	size_t				size;
-	int				refcount;
-	VTAILQ_ENTRY(frfile)		list;
-};
-
-static VTAILQ_HEAD(, frfile)	frlist = VTAILQ_HEAD_INITIALIZER(frlist);
-static pthread_mutex_t		frmtx = PTHREAD_MUTEX_INITIALIZER;
+static VTAILQ_HEAD(, vfc)	vfc_head = VTAILQ_HEAD_INITIALIZER(vfc_head);
+static pthread_mutex_t		vfc_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 static void
-unref_frfile(struct frfile **frfp)
+vfc_unref_locked(struct vfc **vfcp)
 {
-	struct frfile *frf;
+	struct vfc *vfc;
 
-	AN(frfp);
-	frf = *frfp;
-	if (frf == NULL)
+	AN(vfcp);
+	vfc = *vfcp;
+	if (vfc == NULL)
 		return;
-	CHECK_OBJ(frf, CACHED_FILE_MAGIC);
-	assert(frf->refcount > 0);
-	if (--frf->refcount > 0)
-		*frfp = NULL;
+	CHECK_OBJ(vfc, CACHED_FILE_MAGIC);
+	assert(vfc->refcount > 0);
+	if (--vfc->refcount > 0)
+		*vfcp = NULL;
 	else
-		VTAILQ_REMOVE(&frlist, frf, list);
+		VTAILQ_REMOVE(&vfc_head, vfc, list);
 }
 
 static void
-destroy_frfile(struct frfile **frfp)
+vfc_destroy(struct vfc **vfcp)
 {
-	struct frfile *frf;
+	struct vfc *vfc;
 
-	TAKE_OBJ_NOTNULL(frf, frfp, CACHED_FILE_MAGIC);
-	free(frf->contents);
-	free(frf->file_name);
-	FREE_OBJ(frf);
+	TAKE_OBJ_NOTNULL(vfc, vfcp, CACHED_FILE_MAGIC);
+	free(vfc->contents);
+	free(vfc->file_name);
+	FREE_OBJ(vfc);
 }
 
-static void
-free_frfile(void *ptr)
+void
+VFC_destroy(struct vfc **vfcp)
 {
-	struct frfile *frf;
 
-	CAST_OBJ_NOTNULL(frf, ptr, CACHED_FILE_MAGIC);
-
-	AZ(pthread_mutex_lock(&frmtx));
-	unref_frfile(&frf);
-	AZ(pthread_mutex_unlock(&frmtx));
-	if (frf != NULL)
-		destroy_frfile(&frf);
+	AN(vfcp);
+	AN(*vfcp);
+	AZ(pthread_mutex_lock(&vfc_mtx));
+	vfc_unref_locked(vfcp);
+	AZ(pthread_mutex_unlock(&vfc_mtx));
+	if (*vfcp != NULL)
+		vfc_destroy(vfcp);
 }
 
-static struct frfile *
-find_frfile(struct frfile *old, VCL_STRING file_name)
+struct vfc *
+VFC_find(struct vfc *old, const char *file_name)
 {
-	struct frfile *frf;
+	struct vfc *vfc;
 	char *s;
 	ssize_t sz;
 
@@ -120,49 +114,32 @@ find_frfile(struct frfile *old, VCL_STRING file_name)
 	if (old != NULL && !strcmp(file_name, old->file_name))
 		return (old);
 
-	AZ(pthread_mutex_lock(&frmtx));
-	unref_frfile(&old);
-	VTAILQ_FOREACH(frf, &frlist, list) {
-		if (!strcmp(file_name, frf->file_name)) {
-			frf->refcount++;
+	AZ(pthread_mutex_lock(&vfc_mtx));
+	vfc_unref_locked(&old);
+	VTAILQ_FOREACH(vfc, &vfc_head, list) {
+		if (!strcmp(file_name, vfc->file_name)) {
+			vfc->refcount++;
 			break;
 		}
 	}
-	AZ(pthread_mutex_unlock(&frmtx));
+	AZ(pthread_mutex_unlock(&vfc_mtx));
 	if (old != NULL)
-		destroy_frfile(&old);
-	if (frf != NULL)
-		return (frf);
+		vfc_destroy(&old);
+	if (vfc != NULL)
+		return (vfc);
 
 	s = VFIL_readfile(NULL, file_name, &sz);
 	if (s != NULL) {
 		assert(sz > 0);
-		ALLOC_OBJ(frf, CACHED_FILE_MAGIC);
-		AN(frf);
-		REPLACE(frf->file_name, file_name);
-		frf->refcount = 1;
-		frf->contents = s;
-		frf->size = (size_t)sz;
-		AZ(pthread_mutex_lock(&frmtx));
-		VTAILQ_INSERT_HEAD(&frlist, frf, list);
-		AZ(pthread_mutex_unlock(&frmtx));
+		ALLOC_OBJ(vfc, CACHED_FILE_MAGIC);
+		AN(vfc);
+		REPLACE(vfc->file_name, file_name);
+		vfc->refcount = 1;
+		vfc->contents = s;
+		vfc->size = (size_t)sz;
+		AZ(pthread_mutex_lock(&vfc_mtx));
+		VTAILQ_INSERT_HEAD(&vfc_head, vfc, list);
+		AZ(pthread_mutex_unlock(&vfc_mtx));
 	}
-	return (frf);
-}
-
-VCL_STRING v_matchproto_(td_std_fileread)
-vmod_fileread(VRT_CTX, struct vmod_priv *priv,
-    VCL_STRING file_name)
-{
-	struct frfile *frf;
-
-	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
-	AN(priv);
-
-	frf = find_frfile(priv->priv, file_name);
-	priv->priv = frf;
-	priv->free = free_frfile;
-	if (frf == NULL)
-		return (NULL);
-	return (frf->contents);
+	return (vfc);
 }

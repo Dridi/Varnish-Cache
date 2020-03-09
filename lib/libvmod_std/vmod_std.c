@@ -50,6 +50,8 @@
 #include "vtim.h"
 #include "vcl.h"
 
+#include "vcc_interface.h"
+
 #include "vcc_if.h"
 
 VCL_VOID v_matchproto_(td_std_set_ip_tos)
@@ -278,4 +280,13 @@ vmod_fnmatch(VRT_CTX, VCL_STRING pattern, VCL_STRING subject,
 	if (period)
 		flags |= FNM_PERIOD;
 	return (fnmatch(pattern, subject, flags) != FNM_NOMATCH);
+}
+
+VCL_STRING v_matchproto_(td_std_fileread)
+vmod_fileread(VRT_CTX, struct vmod_priv *priv, VCL_STRING file_name)
+{
+
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	AN(priv);
+	return (VPI_VFC_find(priv, file_name));
 }

@@ -23,6 +23,7 @@ libvarnish_a_SOURCES = \
 	verrno.c \
 	version.c \
 	vev.c \
+	vfc.c \
 	vfil.c \
 	vfl.c \
 	vin.c \
