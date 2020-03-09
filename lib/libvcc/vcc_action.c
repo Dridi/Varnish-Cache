@@ -88,8 +88,14 @@ static const struct assign {
 	{ STRING,	'=',		STRING_LIST },
 	{ HEADER,	T_INCR,		STRING_LIST, "VRT_GetHdr(ctx, \v),\n" },
 	{ HEADER,	'=',		STRING_LIST },
-	{ BODY,		'=',		STRING_LIST, "LBODY_SET,\n" },
-	{ BODY,		T_INCR,		STRING_LIST, "LBODY_ADD,\n" },
+	{ BODY,		'=',		STRING_LIST, "LBODY_SET_STRING,\n" },
+	{ BODY,		T_INCR,		STRING_LIST, "LBODY_ADD_STRING,\n" },
+	{ VOID,		'=',		VOID }
+};
+
+static const struct assign alt_assign[] = {
+	{ BODY,		'=',		BLOB, "LBODY_SET_BLOB,\n" },
+	{ BODY,		T_INCR,		BLOB, "LBODY_ADD_BLOB,\n" },
 	{ VOID,		'=',		VOID }
 };
 
@@ -133,7 +139,8 @@ vcc_assign_search(struct token *t, vcc_type_t type, const struct assign *ap)
 static void v_matchproto_(sym_act_f)
 vcc_act_set(struct vcc *tl, struct token *t, struct symbol *sym)
 {
-	const struct assign *ap;
+	const struct assign *ap, *alt_ap = NULL;
+	struct token *t_op;
 	vcc_type_t type;
 
 	ExpectErr(tl, ID);
@@ -151,9 +158,28 @@ vcc_act_set(struct vcc *tl, struct token *t, struct symbol *sym)
 	}
 	vcc_AddUses(tl, t, tl->t, sym->w_methods, "Cannot be set");
 	type = sym->type;
+	t_op = tl->t;
 	ap = vcc_assign_search(t_op, type, assign);
-	SkipToken(tl, ap->oper);
 
+	if (ap->type != VOID) {
+		vcc_NextToken(tl);
+		if (vcc_PeekExpr(tl, ap->want) != 0) {
+			AZ(tl->err);
+			alt_ap = vcc_assign_search(t_op, type, alt_assign);
+		}
+		tl->t = t_op;
+	}
+
+	if (alt_ap != NULL && alt_ap->type != VOID) {
+		vcc_NextToken(tl);
+		if (vcc_PeekExpr(tl, alt_ap->want) == 0) {
+			AZ(tl->err);
+			ap = alt_ap;
+		}
+		tl->t = t_op;
+	}
+
+	SkipToken(tl, ap->oper);
 	if (ap->type != VOID)
 		type = ap->want;
 
