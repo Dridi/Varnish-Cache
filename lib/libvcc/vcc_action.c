@@ -113,6 +113,21 @@ vcc_assign_expr(struct vcc *tl, struct symbol *sym, const struct assign *ap)
 	}
 }
 
+static const struct assign *
+vcc_assign_search(struct token *t, vcc_type_t type, const struct assign *ap)
+{
+
+	for (; ap->type != VOID; ap++) {
+		if (ap->type != type)
+			continue;
+		if (ap->oper != t->tok)
+			continue;
+		break;
+	}
+
+	return (ap);
+}
+
 /*--------------------------------------------------------------------*/
 
 static void v_matchproto_(sym_act_f)
@@ -121,7 +136,6 @@ vcc_act_set(struct vcc *tl, struct token *t, struct symbol *sym)
 	const struct assign *ap;
 	vcc_type_t type;
 
-	(void)t;
 	ExpectErr(tl, ID);
 	t = tl->t;
 	sym = VCC_SymbolGet(tl, SYM_VAR, SYMTAB_EXISTING, XREF_NONE);
@@ -137,18 +151,11 @@ vcc_act_set(struct vcc *tl, struct token *t, struct symbol *sym)
 	}
 	vcc_AddUses(tl, t, tl->t, sym->w_methods, "Cannot be set");
 	type = sym->type;
-	for (ap = assign; ap->type != VOID; ap++) {
-		if (ap->type != type)
-			continue;
-		if (ap->oper != tl->t->tok)
-			continue;
-		vcc_NextToken(tl);
-		type = ap->want;
-		break;
-	}
+	ap = vcc_assign_search(t_op, type, assign);
+	SkipToken(tl, ap->oper);
 
-	if (ap->type == VOID)
-		SkipToken(tl, ap->oper);
+	if (ap->type != VOID)
+		type = ap->want;
 
 	Fb(tl, 1, "%s\n", sym->lname);
 	tl->indent += INDENT;
