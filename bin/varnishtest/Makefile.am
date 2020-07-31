@@ -49,6 +49,7 @@ varnishtest_SOURCES = \
 		vtc_server.c \
 		vtc_subr.c \
 		vtc_syslog.c \
+		vtc_tunnel.c \
 		vtc_varnish.c
 
 varnishtest_LDADD = \
